@@ -1,0 +1,2198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MEDIA-OPS // FORMAT CONVERTER</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #05080f;
+    --panel:     #0a0f1a;
+    --panel2:    #0d1420;
+    --panel-r:   #0f1a0a;
+    --green:     #39ff14;
+    --green-dim: #1a7a08;
+    --green-mid: #28c40e;
+    --border:    #1e2d3d;
+    --border-r:  #2a3d1e;
+    --cyan:      #00e5ff;
+    --cyan-dim:  #005f6b;
+    --cyan-mid:  #00b4cc;
+    --orange:    #ff8c00;
+    --orange-dim:#7a3a00;
+    --yellow:    #ffe000;
+    --yellow-dim:#6b5a00;
+    --red:       #ff2200;
+    --magenta:   #ff00aa;
+    --text-dim:  #2a3d5a;
+    --text-mid:  #4a6a8a;
+    --white:     #c8dce8;
+    --scan:      rgba(0,229,255,0.1);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* CRT scanlines overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Vignette */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.7) 100%);
+    pointer-events: none;
+    z-index: 9998;
+  }
+
+  /* ── HEADER ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(90deg, #0f0a02 0%, #0a0f1a 50%, #050a10 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(90deg, rgba(255,140,0,0.04) 0%, transparent 40%);
+    pointer-events: none;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--orange-dim), var(--orange), var(--cyan-dim), var(--cyan), var(--cyan-dim), transparent);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .logo {
+    font-size: 20px;
+    letter-spacing: 4px;
+    color: var(--orange);
+    text-shadow: 0 0 10px var(--orange), 0 0 30px var(--orange-dim);
+  }
+
+  .logo span { color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+
+  .tagline {
+    font-size: 10px;
+    color: var(--cyan-dim);
+    letter-spacing: 2px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 10px;
+    color: var(--text-mid);
+    letter-spacing: 1px;
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    display: inline-block;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  /* ── MODE TOGGLE ── */
+  .mode-toggle {
+    display: flex;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .mode-btn {
+    background: #050810;
+    border: none;
+    color: var(--text-mid);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .mode-btn:hover {
+    color: var(--white);
+    background: #0a1020;
+  }
+
+  .mode-btn.active {
+    background: #0a1a2a;
+    color: var(--cyan);
+    text-shadow: 0 0 6px var(--cyan);
+    box-shadow: inset 0 0 10px rgba(0,229,255,0.06);
+  }
+
+  /* ── AUDIO PREVIEW ── */
+  .audio-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+  }
+
+  #waveform-canvas {
+    width: 100%;
+    max-width: 300px;
+    height: 80px;
+    border: 1px solid var(--border);
+    background: #030810;
+    display: block;
+  }
+
+  .audio-meta {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-mid);
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .audio-meta span {
+    color: var(--cyan-mid);
+  }
+
+  /* ── BITRATE SELECT ── */
+  .param-wrap {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .param-wrap.visible { display: flex; }
+
+  .param-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-mid);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .param-val {
+    color: var(--cyan);
+    text-shadow: 0 0 6px var(--cyan);
+  }
+
+  #bitrate-select {
+    background: #040a12;
+    border: 1px solid #1a2840;
+    color: var(--cyan);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 7px 14px;
+    cursor: pointer;
+    outline: none;
+    width: 100%;
+    text-transform: uppercase;
+  }
+
+  #bitrate-select:hover,
+  #bitrate-select:focus {
+    border-color: var(--cyan-dim);
+  }
+
+  /* ── FRAME GALLERY ── */
+  .frame-gallery {
+    display: none;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .frame-gallery.visible { display: flex; }
+
+  .frame-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    background: #030810;
+    padding: 6px;
+    position: relative;
+  }
+
+  .frame-item img {
+    display: block;
+    max-width: 80px;
+    max-height: 60px;
+    image-rendering: pixelated;
+  }
+
+  .frame-item-label {
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--text-mid);
+  }
+
+  .frame-item .dl-btn {
+    font-size: 9px;
+    padding: 4px 10px;
+    letter-spacing: 1px;
+  }
+
+  .dl-all-btn {
+    background: transparent;
+    border: 1px solid var(--orange-dim);
+    color: var(--orange);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 8px 18px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    text-shadow: 0 0 4px rgba(255,140,0,0.3);
+  }
+
+  .dl-all-btn:hover {
+    background: #1a0e00;
+    border-color: var(--orange);
+    box-shadow: 0 0 12px rgba(255,140,0,0.2);
+  }
+
+  /* ── BITRATE SELECT ── */
+
+  /* ── GRID LAYOUT ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr auto;
+    gap: 1px;
+    background: var(--border);
+    min-height: calc(100vh - 57px);
+  }
+
+  .panel {
+    background: var(--panel);
+    padding: 20px;
+    position: relative;
+  }
+
+  .panel:first-child {
+    background: linear-gradient(160deg, #0a1a0a 0%, var(--panel) 60%);
+  }
+
+  .panel:nth-child(2) {
+    background: linear-gradient(160deg, #050f18 0%, #080d18 60%);
+  }
+
+  .panel-full { grid-column: 1 / -1; }
+
+  .panel-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--cyan-mid);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel:first-child .panel-label {
+    color: var(--green-mid);
+  }
+
+  .panel-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+  }
+
+  /* ── DROP ZONE ── */
+  .drop-zone {
+    border: 1px dashed #1e3a2a;
+    border-radius: 2px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #030a05;
+    position: relative;
+    overflow: hidden;
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .drop-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(57,255,20,0.03) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .drop-zone:hover,
+  .drop-zone.dragover {
+    border-color: var(--green-dim);
+    background: #061208;
+    box-shadow: inset 0 0 30px rgba(57,255,20,0.04);
+  }
+
+  .drop-zone.has-file {
+    border-color: var(--green-dim);
+    border-style: solid;
+    box-shadow: 0 0 20px rgba(57,255,20,0.06);
+  }
+
+  .drop-icon {
+    font-size: 36px;
+    line-height: 1;
+    filter: drop-shadow(0 0 8px var(--green-dim));
+  }
+
+  .drop-title {
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--white);
+  }
+
+  .drop-sub {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-mid);
+  }
+
+  .file-info {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .file-info.visible { display: flex; }
+
+  .file-name {
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--green);
+    word-break: break-all;
+    text-align: center;
+  }
+
+  .file-meta {
+    font-size: 9px;
+    color: var(--text-mid);
+    letter-spacing: 2px;
+  }
+
+  /* Preview thumbnail */
+  .preview-wrap {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+  }
+
+  .preview-img {
+    max-width: 200px;
+    max-height: 120px;
+    display: block;
+    border: 1px solid var(--border);
+    filter: brightness(0.9) saturate(0.7) sepia(0.2) hue-rotate(60deg);
+  }
+
+  /* Scan line animation */
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan), var(--green), var(--cyan), transparent);
+    box-shadow: 0 0 10px var(--cyan), 0 0 4px var(--green);
+    top: 0;
+    animation: none;
+    opacity: 0;
+  }
+
+  .scanning .scan-line {
+    opacity: 1;
+    animation: scan 1.2s linear;
+  }
+
+  @keyframes scan {
+    from { top: 0; }
+    to   { top: 100%; }
+  }
+
+  /* ── FORMAT SELECTOR ── */
+  .format-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .format-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .format-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .fmt-btn {
+    background: #040a12;
+    border: 1px solid #1a2840;
+    color: var(--text-mid);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    position: relative;
+  }
+
+  .fmt-btn:hover {
+    border-color: var(--cyan-dim);
+    color: var(--cyan);
+    background: #071520;
+  }
+
+  .fmt-btn.selected {
+    background: #071a28;
+    border-color: var(--cyan);
+    color: var(--cyan);
+    box-shadow: 0 0 8px rgba(0,229,255,0.2), inset 0 0 8px rgba(0,229,255,0.05);
+    text-shadow: 0 0 6px var(--cyan);
+  }
+
+  .fmt-btn.selected::before {
+    content: '▶ ';
+    color: var(--orange);
+  }
+
+  .fmt-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    border-color: #111;
+  }
+
+  /* ── QUALITY SLIDER (para JPG) ── */
+  .quality-wrap {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .quality-wrap.visible { display: flex; }
+
+  .quality-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-mid);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .quality-val {
+    color: var(--cyan);
+    text-shadow: 0 0 6px var(--cyan);
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--cyan-dim), #1a3040);
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan);
+    cursor: pointer;
+  }
+
+  /* ── CONVERT BUTTON ── */
+  .convert-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--yellow-dim);
+    color: var(--yellow);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 4px;
+    padding: 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    margin-top: 8px;
+    text-shadow: 0 0 8px rgba(255,224,0,0.4);
+  }
+
+  .convert-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,224,0,0.07), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.4s;
+  }
+
+  .convert-btn:hover:not(:disabled)::before {
+    transform: translateX(100%);
+  }
+
+  .convert-btn:hover:not(:disabled) {
+    background: #1a1400;
+    border-color: var(--yellow);
+    box-shadow: 0 0 20px rgba(255,224,0,0.15), inset 0 0 20px rgba(255,224,0,0.03);
+    text-shadow: 0 0 12px var(--yellow);
+  }
+
+  .convert-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    color: #4a4020;
+    border-color: #2a2010;
+    text-shadow: none;
+  }
+
+  .convert-btn.loading {
+    pointer-events: none;
+    color: var(--orange);
+    border-color: var(--orange-dim);
+    text-shadow: 0 0 8px var(--orange);
+  }
+
+  /* ── LOG PANEL ── */
+  .log-panel {
+    background: #020805;
+    border: 1px solid #0f2010;
+    border-left: 2px solid var(--green-dim);
+    padding: 12px;
+    height: 140px;
+    overflow-y: auto;
+    font-size: 10px;
+    letter-spacing: 1px;
+    line-height: 1.8;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .log-line {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .log-time { color: #2a4a3a; white-space: nowrap; }
+  .log-ok   { color: var(--green); }
+  .log-info { color: #3a6a5a; }
+  .log-warn { color: var(--orange); }
+  .log-err  { color: var(--red); text-shadow: 0 0 6px var(--red); }
+
+  /* ── OUTPUT PANEL ── */
+  .output-area {
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: #030810;
+    border: 1px solid #0f1e2e;
+    border-left: 2px solid var(--cyan-dim);
+    padding: 20px;
+  }
+
+  .output-placeholder {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #1a3050;
+    text-align: center;
+  }
+
+  .output-ready {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .output-ready.visible { display: flex; }
+
+  .output-thumb {
+    max-width: 200px;
+    max-height: 120px;
+    border: 1px solid var(--cyan-dim);
+    filter: brightness(0.9) saturate(0.8);
+    box-shadow: 0 0 16px rgba(0,229,255,0.12);
+  }
+
+  .output-stats {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #3a5a7a;
+    text-align: center;
+    line-height: 2;
+  }
+
+  .output-stats span { color: var(--cyan); text-shadow: 0 0 4px var(--cyan); }
+
+  .dl-btn {
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    padding: 10px 24px;
+    cursor: pointer;
+    text-transform: uppercase;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.15s;
+    text-shadow: 0 0 6px var(--green);
+  }
+
+  .dl-btn:hover {
+    background: #0a2a0a;
+    border-color: var(--green-mid);
+    box-shadow: 0 0 16px rgba(57,255,20,0.25);
+    text-shadow: 0 0 10px var(--green);
+  }
+
+  /* ── STATUS BAR ── */
+  .statusbar {
+    grid-column: 1 / -1;
+    background: #050810;
+    border-top: 1px solid #0f1830;
+    padding: 6px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #1a2a40;
+  }
+
+  .statusbar-msg { color: var(--cyan-dim); }
+
+  /* ── HIDDEN FILE INPUT ── */
+  #file-input { display: none; }
+
+  /* ── CORNER MARKS ── */
+  .corner-mark {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 8px; height: 8px;
+    border-top: 1px solid var(--orange-dim);
+    border-right: 1px solid var(--orange-dim);
+  }
+
+  .corner-mark-bl {
+    position: absolute;
+    bottom: 4px; left: 4px;
+    width: 8px; height: 8px;
+    border-bottom: 1px solid var(--cyan-dim);
+    border-left: 1px solid var(--cyan-dim);
+  }
+
+  /* Format group label */
+  .format-group-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: #2a4a6a;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #030510; }
+  ::-webkit-scrollbar-thumb { background: var(--cyan-dim); }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/omggif/1.0.10/omggif.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo">MEDIA<span>-</span>OPS</div>
+    <div class="tagline">FORMAT CONVERSION UNIT // v1.0</div>
+  </div>
+  <div class="mode-toggle">
+    <button class="mode-btn active" data-mode="image">IMAGE</button>
+    <button class="mode-btn" data-mode="gif">GIF</button>
+    <button class="mode-btn" data-mode="audio">AUDIO</button>
+  </div>
+  <div class="header-right">
+    <span><span class="status-dot"></span> SYS ONLINE</span>
+    <span id="header-time">--:--:--</span>
+  </div>
+</header>
+
+<div class="main-grid">
+
+  <!-- LEFT: INPUT -->
+  <div class="panel">
+    <div class="corner-mark"></div>
+    <div class="corner-mark-bl"></div>
+    <div class="panel-label">// INPUT FILE</div>
+
+    <div class="drop-zone" id="drop-zone">
+      <div class="file-info" id="file-info-empty">
+        <div class="drop-icon">⬡</div>
+        <div class="drop-title">DROP FILE HERE</div>
+        <div class="drop-sub">OR CLICK TO SELECT</div>
+        <div class="drop-sub" id="supported-formats-hint"></div>
+      </div>
+      <div class="file-info" id="file-info-loaded" style="display:none">
+        <div class="preview-wrap" id="preview-wrap">
+          <img class="preview-img" id="preview-img" src="" alt="">
+          <div class="scan-line" id="scan-line"></div>
+        </div>
+        <div class="audio-preview" id="audio-preview" style="display:none">
+          <canvas id="waveform-canvas" width="300" height="80"></canvas>
+          <div class="audio-meta" id="audio-meta-display"></div>
+        </div>
+        <div class="file-name" id="file-name-display">—</div>
+        <div class="file-meta" id="file-meta-display">—</div>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept="image/*">
+
+    <div style="margin-top:16px">
+      <div class="panel-label">// OPERATION LOG</div>
+      <div class="log-panel" id="log-panel">
+        <div class="log-line"><span class="log-time">00:00:00</span><span class="log-info">SYSTEM READY. AWAITING INPUT.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: CONFIG + OUTPUT -->
+  <div class="panel">
+    <div class="corner-mark"></div>
+    <div class="panel-label">// TARGET FORMAT</div>
+
+    <div class="format-section">
+      <div class="format-group">
+        <div class="format-group-label">SELECT OUTPUT FORMAT</div>
+        <div class="format-row" id="format-buttons"></div>
+        <div id="format-note" style="display:none; font-size:9px; letter-spacing:2px; color:#5a4a20; margin-top:6px;"></div>
+      </div>
+
+      <div class="quality-wrap" id="quality-wrap">
+        <div class="quality-label">
+          <span>COMPRESSION QUALITY</span>
+          <span class="quality-val" id="quality-val">0.92</span>
+        </div>
+        <input type="range" id="quality-slider" min="0.1" max="1" step="0.01" value="0.92">
+      </div>
+
+      <div class="param-wrap" id="bitrate-wrap">
+        <div class="param-label">
+          <span>BITRATE</span>
+          <span class="param-val" id="bitrate-val">192 kbps</span>
+        </div>
+        <select id="bitrate-select"></select>
+      </div>
+
+      <div class="param-wrap" id="fps-wrap">
+        <div class="param-label">
+          <span>FPS</span>
+          <span class="param-val" id="fps-val">10</span>
+        </div>
+        <input type="range" id="fps-slider" min="1" max="30" step="1" value="10">
+      </div>
+
+      <button class="convert-btn" id="convert-btn" disabled>
+        ▶ EXECUTE CONVERSION
+      </button>
+
+      <div>
+        <div class="panel-label">// OUTPUT</div>
+        <div class="output-area">
+          <div class="output-placeholder" id="output-placeholder">
+            — AWAITING CONVERSION —
+          </div>
+          <div class="output-ready" id="output-ready">
+            <div class="preview-wrap">
+              <img class="output-thumb" id="output-thumb" src="" alt="">
+            </div>
+          <div class="output-stats" id="output-stats"></div>
+          <div class="frame-gallery" id="frame-gallery"></div>
+          <a class="dl-btn" id="dl-btn" href="#" download>⬇ DOWNLOAD FILE</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="statusbar">
+    <span class="statusbar-msg" id="statusbar-msg">READY</span>
+    <span>MEDIA-OPS © 2026 // TACTICAL FORMAT UNIT</span>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  FORMAT REGISTRY — añade nuevos formatos aquí
+// ══════════════════════════════════════════════════════
+const FORMAT_REGISTRY = {
+  jpg: {
+    label: 'JPG',
+    mimeType: 'image/jpeg',
+    extension: 'jpg',
+    supportsQuality: true,
+    defaultQuality: 0.92,
+    whiteBackground: true,
+  },
+  png: {
+    label: 'PNG',
+    mimeType: 'image/png',
+    extension: 'png',
+    supportsQuality: false,
+    defaultQuality: 1,
+  },
+  webp: {
+    label: 'WEBP',
+    mimeType: 'image/webp',
+    extension: 'webp',
+    supportsQuality: true,
+    defaultQuality: 0.90,
+  },
+  avif: {
+    label: 'AVIF',
+    mimeType: 'image/avif',
+    extension: 'avif',
+    supportsQuality: true,
+    defaultQuality: 0.80,
+    note: 'Next-gen · mejor compresión que WEBP',
+  },
+  gif: {
+    label: 'GIF',
+    mimeType: 'image/gif',
+    extension: 'gif',
+    supportsQuality: false,
+    defaultQuality: 1,
+    note: '256 colores · sin transparencia parcial',
+    useGifEncoder: true,
+  },
+  tiff: {
+    label: 'TIFF',
+    mimeType: 'image/tiff',
+    extension: 'tif',
+    supportsQuality: false,
+    defaultQuality: 1,
+    note: 'Imprenta · requiere librería externa',
+    useTiffEncoder: true,
+  },
+  bmp: {
+    label: 'BMP',
+    mimeType: 'image/bmp',
+    extension: 'bmp',
+    supportsQuality: false,
+    defaultQuality: 1,
+  },
+};
+
+// ══════════════════════════════════════════════════════
+//  AUDIO FORMAT REGISTRY
+// ══════════════════════════════════════════════════════
+const AUDIO_FORMAT_REGISTRY = {
+  wav: {
+    label: 'WAV',
+    extension: 'wav',
+    mimeType: 'audio/wav',
+    supportsQuality: false,
+    supportsBitrate: false,
+  },
+  mp3: {
+    label: 'MP3',
+    extension: 'mp3',
+    mimeType: 'audio/mpeg',
+    supportsQuality: false,
+    supportsBitrate: true,
+    defaultBitrate: 192,
+    bitrateOptions: [128, 192, 256, 320],
+    useMp3Encoder: true,
+  },
+  ogg: {
+    label: 'OGG',
+    extension: 'ogg',
+    mimeType: 'audio/ogg',
+    supportsQuality: false,
+    supportsBitrate: true,
+    defaultBitrate: 192,
+    bitrateOptions: [64, 96, 128, 160, 192, 256, 320],
+    useOggEncoder: true,
+  },
+  flac: {
+    label: 'FLAC',
+    extension: 'flac',
+    mimeType: 'audio/flac',
+    supportsQuality: false,
+    supportsBitrate: false,
+    useFlacEncoder: true,
+    note: 'Compresión sin pérdida',
+  },
+};
+
+// ══════════════════════════════════════════════════════
+//  GIF FORMAT REGISTRY
+// ══════════════════════════════════════════════════════
+const GIF_FORMAT_REGISTRY = {
+  extract: {
+    label: 'EXTRACT FRAMES',
+    extension: 'png',
+    mimeType: 'image/png',
+    supportsQuality: false,
+    supportsFps: false,
+    extractFrames: true,
+    note: 'Cada frame como PNG individual',
+  },
+  gif: {
+    label: 'ANIMATED GIF',
+    extension: 'gif',
+    mimeType: 'image/gif',
+    supportsQuality: false,
+    supportsFps: true,
+    defaultFps: 10,
+    encodeGif: true,
+  },
+};
+
+function getRegistry() {
+  if (state.mode === 'image') return FORMAT_REGISTRY;
+  if (state.mode === 'gif') return GIF_FORMAT_REGISTRY;
+  return AUDIO_FORMAT_REGISTRY;
+}
+
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+let state = {
+  mode: 'image',
+  file: null,
+  files: [],
+  imageEl: null,
+  audioBuffer: null,
+  frames: [],
+  inputFormat: null,
+  targetFormat: null,
+  quality: 0.92,
+  bitrate: 192,
+  fps: 10,
+  outputUrl: null,
+  outputBlob: null,
+  outputName: null,
+};
+
+// ══════════════════════════════════════════════════════
+//  DOM REFS
+// ══════════════════════════════════════════════════════
+const dropZone       = document.getElementById('drop-zone');
+const fileInput      = document.getElementById('file-input');
+const fileInfoEmpty  = document.getElementById('file-info-empty');
+const fileInfoLoaded = document.getElementById('file-info-loaded');
+const previewImg     = document.getElementById('preview-img');
+const previewWrap    = document.getElementById('preview-wrap');
+const scanLine       = document.getElementById('scan-line');
+const fileNameDisp   = document.getElementById('file-name-display');
+const fileMetaDisp   = document.getElementById('file-meta-display');
+const formatButtons  = document.getElementById('format-buttons');
+const qualityWrap    = document.getElementById('quality-wrap');
+const qualitySlider  = document.getElementById('quality-slider');
+const qualityVal     = document.getElementById('quality-val');
+const bitrateWrap    = document.getElementById('bitrate-wrap');
+const bitrateSelect  = document.getElementById('bitrate-select');
+const bitrateVal     = document.getElementById('bitrate-val');
+const fpsWrap        = document.getElementById('fps-wrap');
+const fpsSlider      = document.getElementById('fps-slider');
+const fpsVal         = document.getElementById('fps-val');
+const convertBtn     = document.getElementById('convert-btn');
+const logPanel       = document.getElementById('log-panel');
+const outputPlaceholder = document.getElementById('output-placeholder');
+const outputReady    = document.getElementById('output-ready');
+const outputThumb    = document.getElementById('output-thumb');
+const outputStats    = document.getElementById('output-stats');
+const frameGallery   = document.getElementById('frame-gallery');
+const dlBtn          = document.getElementById('dl-btn');
+const statusbarMsg   = document.getElementById('statusbar-msg');
+const audioPreview   = document.getElementById('audio-preview');
+const waveformCanvas = document.getElementById('waveform-canvas');
+const audioMetaDisp  = document.getElementById('audio-meta-display');
+const modeBtns       = document.querySelectorAll('.mode-btn');
+
+// ══════════════════════════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════════════════════════
+function updateClock() {
+  const now = new Date();
+  document.getElementById('header-time').textContent =
+    now.toTimeString().slice(0,8);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ══════════════════════════════════════════════════════
+//  LOG
+// ══════════════════════════════════════════════════════
+function log(msg, type = 'info') {
+  const now = new Date().toTimeString().slice(0,8);
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">${now}</span><span class="log-${type}">${msg}</span>`;
+  logPanel.appendChild(line);
+  logPanel.scrollTop = logPanel.scrollHeight;
+}
+
+// ══════════════════════════════════════════════════════
+//  BUILD FORMAT BUTTONS
+// ══════════════════════════════════════════════════════
+function buildFormatButtons() {
+  const registry = getRegistry();
+  formatButtons.innerHTML = '';
+  Object.keys(registry).forEach(key => {
+    const fmt = registry[key];
+    const btn = document.createElement('button');
+    btn.className = 'fmt-btn';
+    btn.textContent = fmt.label;
+    btn.dataset.format = key;
+    btn.addEventListener('click', () => selectTargetFormat(key));
+    formatButtons.appendChild(btn);
+  });
+}
+
+function updateFormatsHint() {
+  document.getElementById('supported-formats-hint').textContent =
+    Object.values(getRegistry()).map(f => f.label).join(' · ');
+}
+
+buildFormatButtons();
+updateFormatsHint();
+
+// ── Mode switch ──
+modeBtns.forEach(btn => {
+  btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+});
+
+function switchMode(mode) {
+  state.mode = mode;
+  modeBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+
+  // Clear state
+  state.file = null;
+  state.files = [];
+  state.imageEl = null;
+  state.audioBuffer = null;
+  state.frames = [];
+  state.targetFormat = null;
+  state.outputBlob = null;
+  state.outputName = null;
+  if (state.outputUrl) URL.revokeObjectURL(state.outputUrl);
+  state.outputUrl = null;
+
+  // Reset UI
+  fileInfoEmpty.style.display = '';
+  fileInfoLoaded.style.display = 'none';
+  previewWrap.style.display = '';
+  previewImg.src = '';
+  audioPreview.style.display = 'none';
+  dropZone.classList.remove('has-file');
+  outputPlaceholder.style.display = 'block';
+  outputReady.classList.remove('visible');
+  frameGallery.classList.remove('visible');
+  qualityWrap.classList.remove('visible');
+  bitrateWrap.classList.remove('visible');
+  fpsWrap.classList.remove('visible');
+  document.getElementById('format-note').style.display = 'none';
+
+  // Update file input
+  fileInput.accept = mode === 'image' ? 'image/*' : mode === 'gif' ? 'image/gif,image/png,image/jpeg,image/webp' : 'audio/*';
+  fileInput.multiple = mode === 'gif';
+
+  // Rebuild format buttons + hint
+  buildFormatButtons();
+  updateFormatsHint();
+  updateConvertBtn();
+  convertBtn.disabled = true;
+  statusbarMsg.textContent = 'READY';
+  log(`MODE SWITCHED: ${mode.toUpperCase()}`, 'info');
+}
+
+function selectTargetFormat(key) {
+  state.targetFormat = key;
+  document.querySelectorAll('.fmt-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.format === key);
+    b.disabled = false;
+  });
+  const fmt = getRegistry()[key];
+
+  qualityWrap.classList.remove('visible');
+  bitrateWrap.classList.remove('visible');
+  fpsWrap.classList.remove('visible');
+
+  if (fmt.supportsQuality) {
+    qualityWrap.classList.add('visible');
+    qualitySlider.value = fmt.defaultQuality;
+    qualityVal.textContent = fmt.defaultQuality.toFixed(2);
+    state.quality = fmt.defaultQuality;
+  }
+
+  if (fmt.supportsBitrate) {
+    bitrateWrap.classList.add('visible');
+    bitrateSelect.innerHTML = fmt.bitrateOptions.map(b =>
+      `<option value="${b}"${b === fmt.defaultBitrate ? ' selected' : ''}>${b} kbps</option>`
+    ).join('');
+    state.bitrate = fmt.defaultBitrate;
+    bitrateVal.textContent = `${fmt.defaultBitrate} kbps`;
+  }
+
+  if (fmt.supportsFps) {
+    fpsWrap.classList.add('visible');
+    fpsSlider.value = fmt.defaultFps;
+    fpsVal.textContent = fmt.defaultFps;
+    state.fps = fmt.defaultFps;
+  }
+
+  const noteEl = document.getElementById('format-note');
+  if (fmt.note) {
+    noteEl.textContent = '⚑ ' + fmt.note.toUpperCase();
+    noteEl.style.display = 'block';
+  } else {
+    noteEl.style.display = 'none';
+  }
+
+  if (fmt.extractFrames && state.frames.length === 0) {
+    log('NO FRAMES TO EXTRACT — LOAD A GIF FIRST', 'err');
+    state.targetFormat = null;
+    document.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('selected'));
+    updateConvertBtn();
+    return;
+  }
+
+  updateConvertBtn();
+  log(`TARGET FORMAT SET: ${fmt.label}`, 'ok');
+}
+
+// ══════════════════════════════════════════════════════
+//  FILE LOAD
+// ══════════════════════════════════════════════════════
+function handleFile(file) {
+  if (!file) return;
+
+  if (state.mode === 'image') {
+    handleImageFile(file);
+  } else if (state.mode === 'audio') {
+    handleAudioFile(file);
+  }
+}
+
+function handleImageFile(file) {
+  if (!file.type.startsWith('image/')) {
+    log('ERROR: FILE IS NOT A VALID IMAGE', 'err');
+    return;
+  }
+
+  state.file = file;
+  const detectedFormat = Object.keys(FORMAT_REGISTRY).find(
+    k => FORMAT_REGISTRY[k].mimeType === file.type
+  ) || file.name.split('.').pop().toLowerCase();
+  state.inputFormat = detectedFormat;
+
+  log(`FILE LOADED: ${file.name}`, 'ok');
+  log(`FORMAT DETECTED: ${(detectedFormat || 'UNKNOWN').toUpperCase()} · SIZE: ${formatBytes(file.size)}`, 'info');
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      state.imageEl = img;
+      previewImg.src = e.target.result;
+      fileInfoEmpty.style.display = 'none';
+      fileInfoLoaded.style.display = 'flex';
+      previewWrap.style.display = '';
+      audioPreview.style.display = 'none';
+      dropZone.classList.add('has-file');
+      fileNameDisp.textContent = file.name;
+      fileMetaDisp.textContent = `${img.width}×${img.height}px · ${formatBytes(file.size)}`;
+      log(`DIMENSIONS: ${img.width}×${img.height}px`, 'info');
+
+      document.querySelectorAll('.fmt-btn').forEach(b => {
+        b.disabled = false;
+      });
+
+      triggerScan();
+      updateConvertBtn();
+      statusbarMsg.textContent = `FILE LOADED // ${file.name}`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleAudioFile(file) {
+  if (!file.type.startsWith('audio/')) {
+    log('ERROR: FILE IS NOT A VALID AUDIO FILE', 'err');
+    return;
+  }
+
+  state.file = file;
+  state.inputFormat = file.name.split('.').pop().toLowerCase();
+
+  log(`FILE LOADED: ${file.name}`, 'ok');
+  log(`FORMAT DETECTED: ${state.inputFormat.toUpperCase()} · SIZE: ${formatBytes(file.size)}`, 'info');
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffer = await audioCtx.decodeAudioData(e.target.result);
+      state.audioBuffer = audioBuffer;
+
+      fileInfoEmpty.style.display = 'none';
+      fileInfoLoaded.style.display = 'flex';
+      previewWrap.style.display = 'none';
+      audioPreview.style.display = 'flex';
+      dropZone.classList.add('has-file');
+      fileNameDisp.textContent = file.name;
+
+      const dur = audioBuffer.duration;
+      const mins = Math.floor(dur / 60);
+      const secs = Math.floor(dur % 60);
+      fileMetaDisp.textContent = `${mins}:${secs.toString().padStart(2, '0')} · ${audioBuffer.sampleRate}Hz · ${audioBuffer.numberOfChannels}ch · ${formatBytes(file.size)}`;
+      audioMetaDisp.innerHTML = `DURATION: <span>${mins}:${secs.toString().padStart(2, '0')}</span> · SAMPLE RATE: <span>${audioBuffer.sampleRate}Hz</span> · CHANNELS: <span>${audioBuffer.numberOfChannels}</span>`;
+
+      renderWaveform(audioBuffer);
+
+      document.querySelectorAll('.fmt-btn').forEach(b => {
+        b.disabled = false;
+      });
+
+      updateConvertBtn();
+      statusbarMsg.textContent = `FILE LOADED // ${file.name}`;
+    } catch (err) {
+      log(`ERROR DECODING AUDIO: ${err.message}`, 'err');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════════════════════════
+//  GIF FILE HANDLING
+// ══════════════════════════════════════════════════════
+
+function handleGifFiles(files) {
+  if (!files || files.length === 0) return;
+
+  state.files = files;
+  state.frames = [];
+  state.targetFormat = null;
+  document.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('selected'));
+
+  // Check if single GIF file
+  if (files.length === 1 && files[0].type === 'image/gif') {
+    log(`GIF LOADED: ${files[0].name}`, 'ok');
+    log(`SIZE: ${formatBytes(files[0].size)}`, 'info');
+    loadGifFile(files[0]);
+  } else {
+    // Multiple image files → create GIF
+    const imgs = files.filter(f => f.type.startsWith('image/'));
+    if (imgs.length === 0) {
+      log('ERROR: NO VALID IMAGE FILES', 'err');
+      return;
+    }
+    log(`${imgs.length} IMAGE(S) LOADED FOR GIF CREATION`, 'ok');
+    loadImagesAsFrames(imgs);
+  }
+}
+
+function loadGifFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const buffer = new Uint8Array(e.target.result);
+      const gifReader = new GifReader(buffer);
+      const numFrames = gifReader.numFrames();
+      state.file = file;
+
+      fileInfoEmpty.style.display = 'none';
+      fileInfoLoaded.style.display = 'flex';
+      dropZone.classList.add('has-file');
+
+      fileNameDisp.textContent = `${file.name} · ${numFrames} frame(s)`;
+      previewWrap.style.display = 'none';
+      audioPreview.style.display = 'none';
+
+      log(`FRAMES DETECTED: ${numFrames}`, 'info');
+
+      // Decode all frames
+      const w = gifReader.width;
+      const h = gifReader.height;
+      const rgba = new Uint8Array(w * h * 4);
+
+      state.frames = [];
+      for (let i = 0; i < numFrames; i++) {
+        rgba.fill(0);
+        gifReader.decodeAndBlitFrameRGBA(i, rgba);
+        const info = gifReader.frameInfo(i);
+        state.frames.push({
+          width: w,
+          height: h,
+          data: new Uint8Array(rgba),
+          delay: info.delay,
+        });
+      }
+
+      fileMetaDisp.textContent = `${w}×${h}px · ${numFrames} frames · ${formatBytes(file.size)}`;
+      updateConvertBtn();
+      statusbarMsg.textContent = `GIF LOADED // ${file.name}`;
+
+      document.querySelectorAll('.fmt-btn').forEach(b => b.disabled = false);
+
+    } catch (err) {
+      log(`ERROR DECODING GIF: ${err.message}`, 'err');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function loadImagesAsFrames(files) {
+  state.file = files[0]; // use first file for name display
+
+  fileInfoEmpty.style.display = 'none';
+  fileInfoLoaded.style.display = 'flex';
+  dropZone.classList.add('has-file');
+  previewWrap.style.display = 'none';
+  audioPreview.style.display = 'none';
+
+  fileNameDisp.textContent = `${files.length} image(s) loaded`;
+  fileMetaDisp.textContent = `${files.length} frames to process`;
+
+  let loaded = 0;
+  state.frames = [];
+
+  files.forEach((file, idx) => {
+    const imgReader = new FileReader();
+    imgReader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        state.frames[idx] = {
+          width: img.width,
+          height: img.height,
+          data: imageData.data,
+          delay: 10,
+        };
+        loaded++;
+        if (loaded === files.length) {
+          log(`ALL ${loaded} FRAMES LOADED`, 'ok');
+          document.querySelectorAll('.fmt-btn').forEach(b => b.disabled = false);
+          updateConvertBtn();
+          statusbarMsg.textContent = `FRAMES READY // ${files.length} image(s)`;
+        }
+      };
+      img.onerror = () => log(`ERROR LOADING IMAGE: ${file.name}`, 'err');
+      img.src = e.target.result;
+    };
+    imgReader.readAsDataURL(file);
+  });
+}
+
+// ── GIF Frame extraction (GIF → individual PNGs) ─────
+async function extractFrames(frames) {
+  const blobs = [];
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i];
+    const c = document.createElement('canvas');
+    c.width = f.width;
+    c.height = f.height;
+    const ctx = c.getContext('2d');
+    const imgData = ctx.createImageData(f.width, f.height);
+    imgData.data.set(f.data);
+    ctx.putImageData(imgData, 0, 0);
+    const blob = await new Promise(resolve => c.toBlob(resolve, 'image/png'));
+    if (blob) blobs.push(blob);
+  }
+  return blobs;
+}
+
+// ── Animated GIF creation (frames → GIF blob) ────────
+async function renderAnimatedGif(frames, fps) {
+  const delay = Math.round(100 / fps);
+  const first = frames[0];
+  const w = first.width;
+  const h = first.height;
+
+  // Find max dimensions across all frames
+  let maxW = w, maxH = h;
+  for (const f of frames) {
+    if (f.width > maxW) maxW = f.width;
+    if (f.height > maxH) maxH = f.height;
+  }
+  const canvasW = maxW;
+  const canvasH = maxH;
+
+  const buf = new Uint8Array(canvasW * canvasH * 4 + frames.length * 2048);
+  const writer = new GifWriter(buf, canvasW, canvasH, {});
+
+  for (const f of frames) {
+    // Center frame on canvas if sizes differ
+    const c = document.createElement('canvas');
+    c.width = canvasW;
+    c.height = canvasH;
+    const ctx = c.getContext('2d');
+    if (f.width !== canvasW || f.height !== canvasH) {
+      const ox = Math.floor((canvasW - f.width) / 2);
+      const oy = Math.floor((canvasH - f.height) / 2);
+      const imgData = ctx.createImageData(f.width, f.height);
+      imgData.data.set(f.data);
+      ctx.putImageData(imgData, ox, oy);
+    } else {
+      const imgData = ctx.createImageData(f.width, f.height);
+      imgData.data.set(f.data);
+      ctx.putImageData(imgData, 0, 0);
+    }
+    const fullData = ctx.getImageData(0, 0, canvasW, canvasH);
+    const { palette, indices } = quantizeImage(fullData.data, canvasW, canvasH);
+    writer.addFrame(0, 0, canvasW, canvasH, indices, { palette, delay });
+  }
+
+  const result = buf.slice(0, writer.end());
+  return new Blob([result], { type: 'image/gif' });
+}
+
+// ── Render frame gallery in output ───────────────────
+async function showFrameGallery(frames) {
+  frameGallery.innerHTML = '';
+  frameGallery.classList.add('visible');
+
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i];
+    const c = document.createElement('canvas');
+    c.width = f.width;
+    c.height = f.height;
+    const ctx = c.getContext('2d');
+    const imgData = ctx.createImageData(f.width, f.height);
+    imgData.data.set(f.data);
+    ctx.putImageData(imgData, 0, 0);
+
+    const blob = await new Promise(resolve => c.toBlob(resolve, 'image/png'));
+    if (!blob) continue;
+    const url = URL.createObjectURL(blob);
+
+    const item = document.createElement('div');
+    item.className = 'frame-item';
+    item.innerHTML = `
+      <img src="${url}">
+      <span class="frame-item-label">#${i + 1}</span>
+      <a class="dl-btn" href="${url}" download="frame-${i + 1}.png">⬇</a>
+    `;
+    frameGallery.appendChild(item);
+  }
+}
+
+function triggerScan() {
+  previewWrap.classList.remove('scanning');
+  void previewWrap.offsetWidth; // reflow
+  previewWrap.classList.add('scanning');
+  setTimeout(() => previewWrap.classList.remove('scanning'), 1300);
+}
+
+// ══════════════════════════════════════════════════════
+//  DRAG & DROP
+// ══════════════════════════════════════════════════════
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('dragover');
+});
+
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const files = Array.from(e.dataTransfer.files);
+  if (state.mode === 'gif') {
+    handleGifFiles(files);
+  } else if (files.length > 0) {
+    handleFile(files[0]);
+  }
+});
+
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  const files = Array.from(e.target.files);
+  if (state.mode === 'gif') {
+    handleGifFiles(files);
+  } else if (files.length > 0) {
+    handleFile(files[0]);
+  }
+});
+
+// ══════════════════════════════════════════════════════
+//  QUALITY SLIDER
+// ══════════════════════════════════════════════════════
+qualitySlider.addEventListener('input', () => {
+  state.quality = parseFloat(qualitySlider.value);
+  qualityVal.textContent = state.quality.toFixed(2);
+});
+
+bitrateSelect.addEventListener('change', () => {
+  state.bitrate = parseInt(bitrateSelect.value);
+  bitrateVal.textContent = `${state.bitrate} kbps`;
+});
+
+fpsSlider.addEventListener('input', () => {
+  state.fps = parseInt(fpsSlider.value);
+  fpsVal.textContent = state.fps;
+});
+
+// ══════════════════════════════════════════════════════
+//  CONVERT BUTTON STATE
+// ══════════════════════════════════════════════════════
+function updateConvertBtn() {
+  convertBtn.disabled = !(state.file && state.targetFormat);
+}
+
+// ══════════════════════════════════════════════════════
+//  CONVERSION ENGINE
+// ══════════════════════════════════════════════════════
+convertBtn.addEventListener('click', () => {
+  if (!state.file || !state.targetFormat) return;
+  runConversion();
+});
+
+function runConversion() {
+  if (state.mode === 'image') {
+    convertImage();
+  } else if (state.mode === 'gif') {
+    convertGif();
+  } else {
+    convertAudio();
+  }
+}
+
+// ── IMAGE CONVERSION (existing) ─────────────────────
+async function convertImage() {
+  const fmt = FORMAT_REGISTRY[state.targetFormat];
+  log(`INITIATING CONVERSION → ${fmt.label}...`, 'warn');
+  statusbarMsg.textContent = 'PROCESSING...';
+  convertBtn.classList.add('loading');
+  convertBtn.textContent = '⟳ PROCESSING...';
+
+  outputPlaceholder.style.display = 'block';
+  outputReady.classList.remove('visible');
+  if (state.outputUrl) URL.revokeObjectURL(state.outputUrl);
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width  = state.imageEl.naturalWidth;
+    canvas.height = state.imageEl.naturalHeight;
+    const ctx = canvas.getContext('2d');
+
+    if (fmt.whiteBackground) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.drawImage(state.imageEl, 0, 0);
+
+    let blob;
+
+    if (fmt.useTiffEncoder) {
+      blob = await convertToTiff(canvas);
+    } else if (fmt.useGifEncoder) {
+      blob = await convertToGif(canvas);
+    } else if (fmt.mimeType === 'image/avif') {
+      blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/avif', state.quality));
+      if (!blob || blob.size === 0) {
+        log('AVIF no soportado por este navegador — usando WEBP como fallback', 'warn');
+        blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', state.quality));
+      }
+    } else {
+      blob = await new Promise(resolve => {
+        canvas.toBlob(resolve, fmt.mimeType, fmt.supportsQuality ? state.quality : undefined);
+      });
+    }
+
+    if (!blob || blob.size === 0) {
+      log('ERROR: CONVERSION FAILED — FORMAT NOT SUPPORTED', 'err');
+      statusbarMsg.textContent = 'ERROR';
+      resetConvertBtn();
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    state.outputUrl = url;
+    const baseName = state.file.name.replace(/\.[^/.]+$/, '');
+    const outName  = `${baseName}.${fmt.extension}`;
+
+    outputThumb.src = url;
+    state.outputBlob = blob;
+    state.outputName = outName;
+    dlBtn.href = url;
+    dlBtn.download = outName;
+
+    const ratio = ((1 - blob.size / state.file.size) * 100).toFixed(1);
+    const sign  = ratio > 0 ? '-' : '+';
+    outputStats.innerHTML =
+      `OUTPUT FILE: <span>${outName}</span><br>` +
+      `SIZE: <span>${formatBytes(blob.size)}</span> ` +
+      `(${sign}${Math.abs(ratio)}% vs INPUT)<br>` +
+      `DIMENSIONS: <span>${canvas.width}×${canvas.height}px</span>`;
+
+    outputPlaceholder.style.display = 'none';
+    outputReady.classList.add('visible');
+
+    log(`CONVERSION COMPLETE: ${outName} · ${formatBytes(blob.size)}`, 'ok');
+    statusbarMsg.textContent = `CONVERSION OK // ${outName}`;
+    resetConvertBtn();
+
+  } catch (err) {
+    log(`SYSTEM ERROR: ${err.message}`, 'err');
+    resetConvertBtn();
+  }
+}
+
+// ── AUDIO CONVERSION ─────────────────────────────────
+async function convertAudio() {
+  const fmt = getRegistry()[state.targetFormat];
+  log(`INITIATING AUDIO CONVERSION → ${fmt.label}...`, 'warn');
+  statusbarMsg.textContent = 'PROCESSING...';
+  convertBtn.classList.add('loading');
+  convertBtn.textContent = '⟳ PROCESSING...';
+
+  outputPlaceholder.style.display = 'block';
+  outputReady.classList.remove('visible');
+  if (state.outputUrl) URL.revokeObjectURL(state.outputUrl);
+
+  try {
+    let blob;
+
+    if (fmt.useMp3Encoder) {
+      blob = await encodeMp3(state.audioBuffer, state.bitrate);
+    } else if (fmt.useOggEncoder) {
+      blob = await encodeOgg(state.audioBuffer, state.bitrate);
+    } else if (fmt.useFlacEncoder) {
+      blob = await encodeFlac(state.audioBuffer);
+    } else {
+      blob = encodeWav(state.audioBuffer);
+    }
+
+    if (!blob || blob.size === 0) {
+      log('ERROR: AUDIO CONVERSION FAILED', 'err');
+      statusbarMsg.textContent = 'ERROR';
+      resetConvertBtn();
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    state.outputUrl = url;
+    const baseName = state.file.name.replace(/\.[^/.]+$/, '');
+    const outName  = `${baseName}.${fmt.extension}`;
+
+    outputThumb.src = '';
+    state.outputBlob = blob;
+    state.outputName = outName;
+    dlBtn.href = url;
+    dlBtn.download = outName;
+
+    const ratio = ((1 - blob.size / state.file.size) * 100).toFixed(1);
+    const sign  = ratio > 0 ? '-' : '+';
+    outputStats.innerHTML =
+      `OUTPUT FILE: <span>${outName}</span><br>` +
+      `SIZE: <span>${formatBytes(blob.size)}</span> ` +
+      `(${sign}${Math.abs(ratio)}% vs INPUT)`;
+
+    outputPlaceholder.style.display = 'none';
+    outputReady.classList.add('visible');
+
+    log(`CONVERSION COMPLETE: ${outName} · ${formatBytes(blob.size)}`, 'ok');
+    statusbarMsg.textContent = `CONVERSION OK // ${outName}`;
+    resetConvertBtn();
+
+  } catch (err) {
+    log(`SYSTEM ERROR: ${err.message}`, 'err');
+    resetConvertBtn();
+  }
+}
+
+// ── GIF CONVERSION ───────────────────────────────────
+async function convertGif() {
+  const fmt = getRegistry()[state.targetFormat];
+  log(`INITIATING GIF CONVERSION → ${fmt.label}...`, 'warn');
+  statusbarMsg.textContent = 'PROCESSING...';
+  convertBtn.classList.add('loading');
+  convertBtn.textContent = '⟳ PROCESSING...';
+
+  outputPlaceholder.style.display = 'block';
+  outputReady.classList.remove('visible');
+  frameGallery.classList.remove('visible');
+  if (state.outputUrl) URL.revokeObjectURL(state.outputUrl);
+
+  try {
+    if (fmt.extractFrames) {
+      // Extract frames as individual PNG files
+      const blobs = await extractFrames(state.frames);
+      if (blobs.length === 0) {
+        log('ERROR: FRAME EXTRACTION FAILED', 'err');
+        resetConvertBtn();
+        return;
+      }
+
+      const baseName = state.file.name.replace(/\.[^/.]+$/, '');
+      const frameBlob = blobs[0];
+      const url = URL.createObjectURL(frameBlob);
+      state.outputUrl = url;
+      state.outputBlob = frameBlob;
+      state.outputName = `${baseName}_frame-1.png`;
+      dlBtn.href = url;
+      dlBtn.download = `${baseName}_frame-1.png`;
+
+      outputThumb.src = url;
+      outputStats.innerHTML =
+        `EXTRACTED: <span>${blobs.length} frames</span> as PNG<br>` +
+        `FIRST FRAME: <span>${formatBytes(frameBlob.size)}</span>`;
+
+      // Show frame gallery for all frames
+      showFrameGallery(state.frames);
+
+      outputPlaceholder.style.display = 'none';
+      outputReady.classList.add('visible');
+
+      log(`FRAME EXTRACTION COMPLETE: ${blobs.length} PNG(s)`, 'ok');
+      statusbarMsg.textContent = `EXTRACTION OK // ${blobs.length} frames`;
+      resetConvertBtn();
+
+    } else if (fmt.encodeGif) {
+      // Create animated GIF from frames
+      const blob = await renderAnimatedGif(state.frames, state.fps);
+      if (!blob || blob.size === 0) {
+        log('ERROR: ANIMATED GIF CREATION FAILED', 'err');
+        statusbarMsg.textContent = 'ERROR';
+        resetConvertBtn();
+        return;
+      }
+
+      const baseName = state.file ? state.file.name.replace(/\.[^/.]+$/, '') : 'animation';
+      const outName = `${baseName}.gif`;
+      const url = URL.createObjectURL(blob);
+      state.outputUrl = url;
+      state.outputBlob = blob;
+      state.outputName = outName;
+      dlBtn.href = url;
+      dlBtn.download = outName;
+
+      outputThumb.src = url;
+      outputStats.innerHTML =
+        `OUTPUT FILE: <span>${outName}</span><br>` +
+        `SIZE: <span>${formatBytes(blob.size)}</span><br>` +
+        `FRAMES: <span>${state.frames.length}</span> · FPS: <span>${state.fps}</span>`;
+
+      outputPlaceholder.style.display = 'none';
+      outputReady.classList.add('visible');
+
+      log(`ANIMATED GIF CREATED: ${outName} · ${formatBytes(blob.size)}`, 'ok');
+      statusbarMsg.textContent = `GIF OK // ${outName}`;
+      resetConvertBtn();
+    }
+
+  } catch (err) {
+    log(`SYSTEM ERROR: ${err.message}`, 'err');
+    resetConvertBtn();
+  }
+}
+
+// ── TIFF encoder (UTIF via CDN) ───────────────────────
+async function convertToTiff(canvas) {
+  try {
+    // Cargamos UTIF dinámicamente si no está disponible
+    if (typeof UTIF === 'undefined') {
+      await loadScript('https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js');
+    }
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const tiffBuffer = UTIF.encodeImage(imageData.data, canvas.width, canvas.height);
+    return new Blob([tiffBuffer], { type: 'image/tiff' });
+  } catch(e) {
+    log(`TIFF encoder error: ${e.message}`, 'err');
+    return null;
+  }
+}
+
+// ── GIF encoder (omggif) ──────────────────────────────
+async function convertToGif(canvas) {
+  try {
+    if (typeof GifWriter === 'undefined') {
+      throw new Error('omggif library not loaded');
+    }
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    const w = canvas.width;
+    const h = canvas.height;
+
+    // Quantize to 256 colors (simple median cut via palette extraction)
+    const { palette, indices } = quantizeImage(pixels, w, h);
+
+    const buf = new Uint8Array(w * h * 4 + 1024);
+    const gw  = new GifWriter(buf, w, h, { palette });
+    gw.addFrame(0, 0, w, h, indices, { palette });
+    const data = buf.slice(0, gw.end());
+    return new Blob([data], { type: 'image/gif' });
+  } catch(e) {
+    log(`GIF encoder error: ${e.message} — intentando canvas nativo`, 'warn');
+    // canvas no soporta GIF nativamente pero intentamos igualmente
+    return new Promise(resolve => canvas.toBlob(resolve, 'image/gif'));
+  }
+}
+
+// Color quantizer para GIF (256 colores, 8 bits por canal completos)
+function quantizeImage(pixels, w, h) {
+  // Fase 1: muestreo con stride para rendimiento en imágenes grandes
+  // Usamos 1 de cada N píxeles para construir el histograma de frecuencias
+  const totalPixels = w * h;
+  const stride = Math.max(1, Math.floor(totalPixels / 20000)); // max ~20k muestras
+  const colorMap = new Map();
+
+  for (let i = 0; i < totalPixels; i += stride) {
+    const pi = i * 4;
+    // 8 bits completos — reducimos resolución solo para agrupar colores similares (6 bits)
+    const r = pixels[pi]   & 0xFC;
+    const g = pixels[pi+1] & 0xFC;
+    const b = pixels[pi+2] & 0xFC;
+    const key = (r << 16) | (g << 8) | b;
+    colorMap.set(key, (colorMap.get(key) || 0) + 1);
+  }
+
+  // Fase 2: top 255 colores por frecuencia + entrada 0 reservada para negro
+  const sorted = [...colorMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 255);
+
+  const palette = [
+    [0, 0, 0],
+    ...sorted.map(([k]) => [(k >> 16) & 0xFF, (k >> 8) & 0xFF, k & 0xFF])
+  ];
+  while (palette.length < 256) palette.push([0, 0, 0]);
+
+  // Fase 3: mapeo de cada píxel al color más cercano en la paleta
+  const indices = new Uint8Array(totalPixels);
+  for (let i = 0; i < totalPixels; i++) {
+    const pi = i * 4;
+    const r = pixels[pi], g = pixels[pi + 1], b = pixels[pi + 2];
+    let best = 0, bestDist = Infinity;
+    for (let j = 0; j < palette.length; j++) {
+      const dr = r - palette[j][0];
+      const dg = g - palette[j][1];
+      const db = b - palette[j][2];
+      const d = dr * dr + dg * dg + db * db;
+      if (d < bestDist) { bestDist = d; best = j; if (d === 0) break; }
+    }
+    indices[i] = best;
+  }
+  return { palette, indices };
+}
+
+// ══════════════════════════════════════════════════════
+//  AUDIO ENCODERS
+// ══════════════════════════════════════════════════════
+
+// ── WAV encoder (nativo) ─────────────────────────────
+function encodeWav(audioBuffer) {
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const length = audioBuffer.length;
+  const dataLength = length * numChannels * 2;
+  const buffer = new ArrayBuffer(44 + dataLength);
+  const view = new DataView(buffer);
+
+  function writeString(offset, str) {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  }
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * 2, true);
+  view.setUint16(32, numChannels * 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  let offset = 44;
+  for (let i = 0; i < length; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(ch)[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+// ── MP3 encoder (lamejs via CDN) ─────────────────────
+async function encodeMp3(audioBuffer, bitrate) {
+  if (typeof lamejs === 'undefined') {
+    await loadScript('https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.all.js');
+  }
+
+  const channels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const encoder = new lamejs.Mp3Encoder(channels, sampleRate, bitrate);
+  const data = [];
+  const blockSize = 1152;
+  const length = audioBuffer.length;
+  const left = audioBuffer.getChannelData(0);
+
+  let right;
+  if (channels > 1) {
+    right = audioBuffer.getChannelData(1);
+  }
+
+  for (let i = 0; i < length; i += blockSize) {
+    const end = Math.min(i + blockSize, length);
+    const chunk = encoder.encodeBuffer(
+      left.subarray(i, end),
+      channels > 1 ? right.subarray(i, end) : left.subarray(i, end)
+    );
+    if (chunk.length > 0) data.push(chunk);
+  }
+
+  const final = encoder.flush();
+  if (final.length > 0) data.push(final);
+
+  const totalLen = data.reduce((acc, a) => acc + a.length, 0);
+  const result = new Uint8Array(totalLen);
+  let pos = 0;
+  for (const chunk of data) {
+    result.set(chunk, pos);
+    pos += chunk.length;
+  }
+
+  return new Blob([result], { type: 'audio/mpeg' });
+}
+
+// ── OGG Vorbis encoder (vorbis-encoder via CDN) ──────
+async function encodeOgg(audioBuffer, bitrate) {
+  if (typeof VorbisEncoder === 'undefined') {
+    await loadScript('https://cdn.jsdelivr.net/npm/vorbis-encoder@1.0.0/dist/vorbis-encoder.min.js');
+  }
+
+  const channels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const encoder = new VorbisEncoder(sampleRate, channels, bitrate / 1000);
+
+  const length = audioBuffer.length;
+  const interleaved = new Float32Array(length * channels);
+  for (let i = 0; i < length; i++) {
+    for (let ch = 0; ch < channels; ch++) {
+      interleaved[i * channels + ch] = audioBuffer.getChannelData(ch)[i];
+    }
+  }
+
+  const oggData = encoder.encode(interleaved);
+  const final = encoder.finish();
+
+  const combined = new Uint8Array(oggData.length + final.length);
+  combined.set(oggData, 0);
+  combined.set(final, oggData.length);
+
+  return new Blob([combined], { type: 'audio/ogg' });
+}
+
+// ── FLAC encoder (flac-encoder via CDN) ──────────────
+async function encodeFlac(audioBuffer) {
+  if (typeof FlacEncoder === 'undefined') {
+    await loadScript('https://cdn.jsdelivr.net/npm/flac-encoder@1.0.1/dist/flac-encoder.min.js');
+  }
+
+  const channels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const encoder = new FlacEncoder({ sampleRate, channels, bitsPerSample: 16 });
+
+  const length = audioBuffer.length;
+  const interleaved = new Int16Array(length * channels);
+  for (let i = 0; i < length; i++) {
+    for (let ch = 0; ch < channels; ch++) {
+      const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(ch)[i]));
+      interleaved[i * channels + ch] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+    }
+  }
+
+  const encoded = encoder.encode(interleaved);
+  const final = encoder.finish();
+
+  const combined = new Uint8Array(encoded.length + final.length);
+  combined.set(encoded, 0);
+  combined.set(final, encoded.length);
+
+  return new Blob([combined], { type: 'audio/flac' });
+}
+
+// ══════════════════════════════════════════════════════
+//  WAVEFORM RENDERER
+// ══════════════════════════════════════════════════════
+function renderWaveform(audioBuffer) {
+  const data = audioBuffer.getChannelData(0);
+  const canvas = waveformCanvas;
+  const w = canvas.width;
+  const h = canvas.height;
+  const mid = h / 2;
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0, 0, w, h);
+
+  const step = Math.ceil(data.length / w);
+  ctx.beginPath();
+  for (let i = 0; i < w; i++) {
+    let min = 1.0, max = -1.0;
+    const start = i * step;
+    const end = Math.min(start + step, data.length);
+    for (let j = start; j < end; j++) {
+      const val = data[j];
+      if (val < min) min = val;
+      if (val > max) max = val;
+    }
+    const y1 = mid + min * mid * 0.85;
+    const y2 = mid + max * mid * 0.85;
+    ctx.moveTo(i + 0.5, y1);
+    ctx.lineTo(i + 0.5, y2);
+  }
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Center line glow
+  ctx.beginPath();
+  ctx.moveTo(0, mid);
+  ctx.lineTo(w, mid);
+  ctx.strokeStyle = 'rgba(0,229,255,0.12)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+// ── Download con File System Access API (progressive enhancement) ──
+dlBtn.addEventListener('click', async (e) => {
+  if (!state.outputBlob || !('showSaveFilePicker' in window)) return;
+  e.preventDefault();
+  const fmt = getRegistry()[state.targetFormat];
+  const desc = state.mode === 'audio' ? 'Audio' : 'Image';
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: state.outputName,
+      types: [{ description: desc, accept: { [fmt.mimeType]: [`.${fmt.extension}`] } }],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(state.outputBlob);
+    await writable.close();
+    log(`FILE SAVED: ${state.outputName}`, 'ok');
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      log(`SAVE ERROR: ${err.message}`, 'err');
+    }
+  }
+});
+
+// Carga dinámica de scripts externos
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
+function resetConvertBtn() {
+  convertBtn.classList.remove('loading');
+  convertBtn.textContent = '▶ EXECUTE CONVERSION';
+}
+
+// ══════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1048576) return `${(bytes/1024).toFixed(1)}KB`;
+  return `${(bytes/1048576).toFixed(2)}MB`;
+}
+</script>
+</body>
+</html>
