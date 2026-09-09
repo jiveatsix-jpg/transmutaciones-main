@@ -708,6 +708,62 @@
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--cyan-dim); }
+
+  /* ── TUTORIAL ── */
+  .hidden { display: none !important; }
+  .tutorial-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,.7);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .tutorial-box {
+    position: relative;
+    background: var(--panel);
+    border: var(--px) solid var(--border);
+    box-shadow: 6px 6px 0 rgba(0,0,0,.6);
+    width: 100%; max-width: 460px;
+    padding: 24px;
+  }
+  .tutorial-close {
+    position: absolute; top: 10px; right: 10px;
+    background: var(--panel2); border: 2px solid var(--border);
+    color: var(--text-mid); font-family: var(--pixel); font-size: 9px;
+    padding: 4px 8px; cursor: pointer;
+  }
+  .tutorial-close:hover { color: var(--white); }
+  .tutorial-step-label {
+    font-family: var(--pixel); font-size: 9px; letter-spacing: 2px;
+    color: var(--text-dim); margin-bottom: 10px;
+  }
+  .tutorial-title {
+    font-family: var(--pixel); font-size: 13px; letter-spacing: 1px;
+    color: var(--cyan); text-shadow: 2px 2px 0 var(--ink);
+    margin-bottom: 14px; padding-right: 26px;
+  }
+  .tutorial-text {
+    font-family: var(--mono); font-size: 18px; line-height: 1.4;
+    color: var(--white); margin-bottom: 20px; min-height: 90px;
+  }
+  .tutorial-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .tutorial-dots { display: flex; gap: 6px; }
+  .tutorial-dot { width: 9px; height: 9px; background: var(--bg); border: 2px solid var(--panel2); }
+  .tutorial-dot.on { background: var(--cyan); border-color: var(--cyan); }
+  .tutorial-nav { display: flex; gap: 6px; }
+  .help-btn, .tutorial-btn {
+    background: var(--panel2);
+    border: none;
+    color: var(--text-mid);
+    font-family: var(--pixel);
+    font-size: 8px;
+    letter-spacing: 1px;
+    padding: 8px 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+  .help-btn:hover, .tutorial-btn:hover { color: var(--white); background: var(--bg); }
+  .tutorial-btn.active { background: var(--bg); color: var(--cyan); text-shadow: 2px 2px 0 var(--ink); }
+  .tutorial-btn:disabled { opacity: .35; cursor: not-allowed; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/omggif/1.0.10/omggif.min.js"></script>
 </head>
@@ -726,6 +782,7 @@
   <div class="header-right">
     <span><span class="status-dot"></span> SYS ONLINE</span>
     <span id="header-time">--:--:--</span>
+    <button class="help-btn" id="btn-help" title="Ver tutorial">?</button>
   </div>
 </header>
 
@@ -832,6 +889,22 @@
     <span>MEDIA-OPS © 2026 // TACTICAL FORMAT UNIT</span>
   </div>
 
+</div>
+
+<div id="tutorial-overlay" class="tutorial-overlay hidden">
+  <div class="tutorial-box">
+    <button class="tutorial-close" id="btn-tutorial-close" title="Cerrar">✕</button>
+    <div class="tutorial-step-label" id="tutorial-step-label">PASO 1 DE 4</div>
+    <div class="tutorial-title" id="tutorial-title"></div>
+    <div class="tutorial-text" id="tutorial-text"></div>
+    <div class="tutorial-footer">
+      <div class="tutorial-dots" id="tutorial-dots"></div>
+      <div class="tutorial-nav">
+        <button class="tutorial-btn" id="btn-tutorial-prev">ATRÁS</button>
+        <button class="tutorial-btn active" id="btn-tutorial-next">SIGUIENTE</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -2130,6 +2203,75 @@ function formatBytes(bytes) {
   if (bytes < 1048576) return `${(bytes/1024).toFixed(1)}KB`;
   return `${(bytes/1048576).toFixed(2)}MB`;
 }
+
+// ══════════════════════════════════════════════════════
+//  TUTORIAL
+// ══════════════════════════════════════════════════════
+const TUTORIAL_SEEN_KEY = 'mediaOps.tutorialSeen';
+
+const TUTORIAL_STEPS = [
+  {
+    title: 'MEDIA-OPS',
+    text: 'Bienvenido a la unidad de conversión de formatos. Todo se procesa en este navegador — ningún archivo se sube a ningún servidor.'
+  },
+  {
+    title: 'ELEGIR MODO',
+    text: 'Arriba, en el header, eliges entre IMAGE, GIF o AUDIO según el tipo de archivo que quieras convertir.'
+  },
+  {
+    title: 'ARCHIVO Y FORMATO',
+    text: 'Arrastra el archivo al panel izquierdo (o haz clic para elegirlo). A la derecha, eliges el formato de salida y ajustas la calidad, el bitrate o los FPS, según el modo activo.'
+  },
+  {
+    title: 'CONVERTIR Y DESCARGAR',
+    text: '"EXECUTE CONVERSION" procesa el archivo — el registro de operaciones va mostrando cada paso. Cuando termina, "DOWNLOAD FILE" descarga el resultado.'
+  }
+];
+
+let tutorialStep = 0;
+
+function renderTutorialStep() {
+  const s = TUTORIAL_STEPS[tutorialStep];
+  document.getElementById('tutorial-step-label').textContent = 'PASO ' + (tutorialStep + 1) + ' DE ' + TUTORIAL_STEPS.length;
+  document.getElementById('tutorial-title').textContent = s.title;
+  document.getElementById('tutorial-text').textContent = s.text;
+  document.getElementById('btn-tutorial-prev').disabled = tutorialStep === 0;
+  document.getElementById('btn-tutorial-next').textContent = tutorialStep === TUTORIAL_STEPS.length - 1 ? 'ENTENDIDO' : 'SIGUIENTE';
+  document.getElementById('tutorial-dots').innerHTML = TUTORIAL_STEPS.map((_, i) =>
+    '<span class="tutorial-dot' + (i === tutorialStep ? ' on' : '') + '"></span>'
+  ).join('');
+}
+
+function openTutorial() {
+  tutorialStep = 0;
+  renderTutorialStep();
+  document.getElementById('tutorial-overlay').classList.remove('hidden');
+}
+
+function closeTutorial() {
+  document.getElementById('tutorial-overlay').classList.add('hidden');
+  localStorage.setItem(TUTORIAL_SEEN_KEY, 'true');
+}
+
+function initTutorial() {
+  document.getElementById('btn-help').addEventListener('click', openTutorial);
+  document.getElementById('btn-tutorial-close').addEventListener('click', closeTutorial);
+  document.getElementById('tutorial-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'tutorial-overlay') closeTutorial();
+  });
+  document.getElementById('btn-tutorial-prev').addEventListener('click', () => {
+    tutorialStep = Math.max(0, tutorialStep - 1);
+    renderTutorialStep();
+  });
+  document.getElementById('btn-tutorial-next').addEventListener('click', () => {
+    if (tutorialStep === TUTORIAL_STEPS.length - 1) { closeTutorial(); return; }
+    tutorialStep = Math.min(TUTORIAL_STEPS.length - 1, tutorialStep + 1);
+    renderTutorialStep();
+  });
+  if (!localStorage.getItem(TUTORIAL_SEEN_KEY)) openTutorial();
+}
+
+initTutorial();
 </script>
 </body>
 </html>
